@@ -31,14 +31,7 @@ extern char _estack; // provided by the linker script
 
 
 ODriveCAN::Config_t can_config;
-SensorlessEstimator::Config_t sensorless_configs[AXIS_COUNT];
-Controller::Config_t controller_configs[AXIS_COUNT];
-Axis::Config_t axis_configs[AXIS_COUNT];
-TrapezoidalTrajectory::Config_t trap_configs[AXIS_COUNT];
-Endstop::Config_t min_endstop_configs[AXIS_COUNT];
-Endstop::Config_t max_endstop_configs[AXIS_COUNT];
 
-std::array<Axis*, AXIS_COUNT> axes;
 ODriveCAN *odCAN = nullptr;
 ODrive odrv{};
 
@@ -51,13 +44,13 @@ static bool config_pop_all() {
            config_manager.pop(&can_config);
     for (size_t i = 0; (i < AXIS_COUNT) && success; ++i) {
         success = config_manager.pop(&encoders[i].config_) &&
-                  config_manager.pop(&sensorless_configs[i]) &&
-                  config_manager.pop(&controller_configs[i]) &&
-                  config_manager.pop(&trap_configs[i]) &&
-                  config_manager.pop(&min_endstop_configs[i]) &&
-                  config_manager.pop(&max_endstop_configs[i]) &&
+                  config_manager.pop(&axes[i].sensorless_estimator_.config_) &&
+                  config_manager.pop(&axes[i].controller_.config_) &&
+                  config_manager.pop(&axes[i].trap_traj_.config_) &&
+                  config_manager.pop(&axes[i].min_endstop_.config_) &&
+                  config_manager.pop(&axes[i].max_endstop_.config_) &&
                   config_manager.pop(&motors[i].config_) &&
-                  config_manager.pop(&axis_configs[i]);
+                  config_manager.pop(&axes[i].config_);
     }
     return success;
 }
@@ -68,13 +61,13 @@ static bool config_push_all() {
            config_manager.push(&can_config);
     for (size_t i = 0; (i < AXIS_COUNT) && success; ++i) {
         success = config_manager.push(&encoders[i].config_) &&
-                  config_manager.push(&sensorless_configs[i]) &&
-                  config_manager.push(&controller_configs[i]) &&
-                  config_manager.push(&trap_configs[i]) &&
-                  config_manager.push(&min_endstop_configs[i]) &&
-                  config_manager.push(&max_endstop_configs[i]) &&
+                  config_manager.push(&axes[i].sensorless_estimator_.config_) &&
+                  config_manager.push(&axes[i].controller_.config_) &&
+                  config_manager.push(&axes[i].trap_traj_.config_) &&
+                  config_manager.push(&axes[i].min_endstop_.config_) &&
+                  config_manager.push(&axes[i].max_endstop_.config_) &&
                   config_manager.push(&motors[i].config_) &&
-                  config_manager.push(&axis_configs[i]);
+                  config_manager.push(&axes[i].config_);
     }
     return success;
 }
@@ -84,17 +77,15 @@ static void config_clear_all() {
     can_config = {};
     for (size_t i = 0; i < AXIS_COUNT; ++i) {
         encoders[i].config_ = {};
-        sensorless_configs[i] = {};
-        controller_configs[i] = {};
-        trap_configs[i] = {};
+        axes[i].sensorless_estimator_.config_ = {};
+        axes[i].controller_.config_ = {};
+        axes[i].trap_traj_.config_ = {};
+        axes[i].min_endstop_.config_ = {};
+        axes[i].max_endstop_.config_ = {};
+        axes[i].controller_.config_ = {};
+        axes[i].controller_.config_.load_encoder_axis = i;
         motors[i].config_ = {};
-        axis_configs[i] = {};
-        // Default step/dir pins are different, so we need to explicitly load them
-        Axis::load_default_step_dir_pin_config(hw_configs[i].axis_config, &axis_configs[i]);
-        Axis::load_default_can_id(i, axis_configs[i]);
-        min_endstop_configs[i] = {};
-        max_endstop_configs[i] = {};
-        controller_configs[i].load_encoder_axis = i;
+        axes[i].clear_config();
     }
 }
 
@@ -102,7 +93,11 @@ static bool config_apply_all() {
     bool success = true;
     for (size_t i = 0; (i < AXIS_COUNT) && success; ++i) {
         success = encoders[i].apply_config(motors[i].config_.motor_type)
-               && motors[i].apply_config();
+               && motors[i].apply_config()
+               && axes[i].controller_.apply_config()
+               && axes[i].min_endstop_.apply_config()
+               && axes[i].max_endstop_.apply_config()
+               && axes[i].apply_config();
     }
     return success;
 }
@@ -169,7 +164,7 @@ extern "C" {
 
 void vApplicationStackOverflowHook(xTaskHandle *pxTask, signed portCHAR *pcTaskName) {
     for(auto& axis : axes){
-        safety_critical_disarm_motor_pwm(axis->motor_);
+        safety_critical_disarm_motor_pwm(axis.motor_);
     }
         safety_critical_disarm_brake_resistor();
     for (;;); // TODO: safe action
@@ -180,7 +175,7 @@ void vApplicationIdleHook(void) {
         odrv.system_stats_.uptime = xTaskGetTickCount();
         odrv.system_stats_.min_heap_space = xPortGetMinimumEverFreeHeapSize();
         uint32_t min_stack_space[AXIS_COUNT];
-        std::transform(axes.begin(), axes.end(), std::begin(min_stack_space), [](auto& axis) { return uxTaskGetStackHighWaterMark(axes[1]->thread_id_) * sizeof(StackType_t); });
+        std::transform(axes.begin(), axes.end(), std::begin(min_stack_space), [](auto& axis) { return uxTaskGetStackHighWaterMark(axis.thread_id_) * sizeof(StackType_t); });
         odrv.system_stats_.min_stack_space_axis = *std::min_element(std::begin(min_stack_space), std::end(min_stack_space));
         odrv.system_stats_.min_stack_space_usb = uxTaskGetStackHighWaterMark(usb_thread) * sizeof(StackType_t);
         odrv.system_stats_.min_stack_space_uart = uxTaskGetStackHighWaterMark(uart_thread) * sizeof(StackType_t);
@@ -189,7 +184,7 @@ void vApplicationIdleHook(void) {
         odrv.system_stats_.min_stack_space_can = uxTaskGetStackHighWaterMark(odCAN->thread_id_) * sizeof(StackType_t);
 
         // Actual usage, in bytes, so we don't have to math
-        odrv.system_stats_.stack_usage_axis = axes[0]->stack_size_ - odrv.system_stats_.min_stack_space_axis;
+        odrv.system_stats_.stack_usage_axis = axes[0].stack_size_ - odrv.system_stats_.min_stack_space_axis;
         odrv.system_stats_.stack_usage_usb = stack_size_usb_thread - odrv.system_stats_.min_stack_space_usb;
         odrv.system_stats_.stack_usage_uart = stack_size_uart_thread - odrv.system_stats_.min_stack_space_uart;
         odrv.system_stats_.stack_usage_usb_irq = stack_size_usb_irq_thread - odrv.system_stats_.min_stack_space_usb_irq;
@@ -222,13 +217,13 @@ static void rtos_main(void*) {
 
     // Setup hardware for all components
     for (size_t i = 0; i < AXIS_COUNT; ++i) {
-        if (!axes[i]->setup()) {
+        if (!axes[i].setup()) {
             for (;;); // TODO: proper error handling
         }
     }
 
     for(auto& axis : axes){
-        axis->encoder_.setup();
+        axis.encoder_.setup();
     }
 
     // Start PWM and enable adc interrupts/callbacks
@@ -246,7 +241,7 @@ static void rtos_main(void*) {
     // procedures and then run the actual controller loops.
     // TODO: generalize for AXIS_COUNT != 2
     for (size_t i = 0; i < AXIS_COUNT; ++i) {
-        axes[i]->start_thread();
+        axes[i].start_thread();
     }
 
     start_analog_thread();
@@ -486,20 +481,6 @@ extern "C" int main(void) {
 
     // Construct all objects.
     odCAN = new ODriveCAN(can_config, &hcan1);
-    for (size_t i = 0; i < AXIS_COUNT; ++i) {
-        SensorlessEstimator *sensorless_estimator = new SensorlessEstimator(sensorless_configs[i]);
-        Controller *controller = new Controller(controller_configs[i]);
-        TrapezoidalTrajectory *trap = new TrapezoidalTrajectory(trap_configs[i]);
-        Endstop *min_endstop = new Endstop(min_endstop_configs[i]);
-        Endstop *max_endstop = new Endstop(max_endstop_configs[i]);
-        axes[i] = new Axis(i, hw_configs[i].axis_config, axis_configs[i],
-                encoders[i], *sensorless_estimator, *controller, motors[i], *trap, *min_endstop, *max_endstop);
-
-        controller_configs[i].parent = controller;
-        min_endstop_configs[i].parent = min_endstop;
-        max_endstop_configs[i].parent = max_endstop;
-        axis_configs[i].parent = axes[i];
-    }
 
     // Create main thread
     osThreadDef(defaultTask, rtos_main, osPriorityNormal, 0, stack_size_default_task / sizeof(StackType_t));

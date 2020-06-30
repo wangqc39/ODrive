@@ -24,6 +24,10 @@ UART_HandleTypeDef* uart0 = &huart4;
 UART_HandleTypeDef* uart1 = nullptr; // TODO: this could be supported in ODrive v3.6 (or similar) using STM32's USART2
 UART_HandleTypeDef* uart2 = nullptr;
 
+const float thermistor_poly_coeffs[] =
+    {363.93910201f, -462.15369634f, 307.55129571f, -27.72569531f};
+const size_t thermistor_num_coeffs = sizeof(thermistor_poly_coeffs)/sizeof(thermistor_poly_coeffs[1]);
+
 Drv8301 m0_gate_driver{
     &spi3_arbiter,
     {M0_nCS_GPIO_Port, M0_nCS_Pin}, // nCS
@@ -79,6 +83,46 @@ Encoder encoders[AXIS_COUNT] = {
         &spi3_arbiter // spi_arbiter
     }
 };
+
+// TODO: this has no hardware dependency and should be allocated depending on config
+Endstop endstops[2 * AXIS_COUNT];
+
+SensorlessEstimator sensorless_estimators[AXIS_COUNT];
+Controller controllers[AXIS_COUNT];
+TrapezoidalTrajectory trap[AXIS_COUNT];
+
+std::array<Axis, AXIS_COUNT> axes{{
+    {
+        0, // axis_num
+        1, // step_gpio_pin
+        2, // dir_gpio_pin
+        (osPriority)(osPriorityHigh + (osPriority)1), // thread_priority
+        encoders[0], // encoder
+        sensorless_estimators[0], // sensorless_estimator
+        controllers[0], // controller
+        motors[0], // motor
+        trap[0], // trap
+        endstops[0], endstops[1], // min_endstop, max_endstop
+    },
+    {
+        1, // axis_num
+#if HW_VERSION_MAJOR == 3 && HW_VERSION_MINOR >= 5
+        7, // step_gpio_pin
+        8, // dir_gpio_pin
+#else
+        3, // step_gpio_pin
+        4, // dir_gpio_pin
+#endif
+        osPriorityHigh, // thread_priority
+        encoders[1], // encoder
+        sensorless_estimators[1], // sensorless_estimator
+        controllers[1], // controller
+        motors[1], // motor
+        trap[1], // trap
+        endstops[2], endstops[3], // min_endstop, max_endstop
+    },
+}};
+
 
 
 #if (HW_VERSION_MINOR == 1) || (HW_VERSION_MINOR == 2)

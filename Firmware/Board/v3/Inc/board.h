@@ -76,6 +76,7 @@ using TOpAmp = Drv8301;
 #include <MotorControl/motor.hpp>
 #include <MotorControl/encoder.hpp>
 
+extern std::array<Axis, AXIS_COUNT> axes;
 extern Motor motors[AXIS_COUNT];
 extern Encoder encoders[AXIS_COUNT];
 extern Stm32Gpio gpios[GPIO_COUNT];
@@ -101,48 +102,8 @@ static const float current_meas_period = CURRENT_MEAS_PERIOD;
 #define CURRENT_MEAS_HZ ( (float)(TIM_1_8_CLOCK_HZ) / (float)(2*TIM_1_8_PERIOD_CLOCKS*(TIM_1_8_RCR+1)) )
 static const int current_meas_hz = CURRENT_MEAS_HZ;
 
-
-typedef struct {
-    uint16_t step_gpio_pin;
-    uint16_t dir_gpio_pin;
-    osPriority thread_priority;
-} AxisHardwareConfig_t;
-
-typedef struct {
-    AxisHardwareConfig_t axis_config;
-} BoardHardwareConfig_t;
-
-extern const BoardHardwareConfig_t hw_configs[AXIS_COUNT];
 extern const float thermistor_poly_coeffs[];
 extern const size_t thermistor_num_coeffs;
-
-//TODO stick this in a C file
-#ifdef __MAIN_CPP__
-const float thermistor_poly_coeffs[] =
-    {363.93910201f, -462.15369634f, 307.55129571f, -27.72569531f};
-const size_t thermistor_num_coeffs = sizeof(thermistor_poly_coeffs)/sizeof(thermistor_poly_coeffs[1]);
-
-const BoardHardwareConfig_t hw_configs[AXIS_COUNT] = { {
-    //M0
-    .axis_config = {
-        .step_gpio_pin = 1,
-        .dir_gpio_pin = 2,
-        .thread_priority = (osPriority)(osPriorityHigh + (osPriority)1),
-    },
-},{
-    //M1
-    .axis_config = {
-#if HW_VERSION_MAJOR == 3 && HW_VERSION_MINOR >= 5
-        .step_gpio_pin = 7,
-        .dir_gpio_pin = 8,
-#else
-        .step_gpio_pin = 3,
-        .dir_gpio_pin = 4,
-#endif
-        .thread_priority = osPriorityHigh,
-    },
-} };
-#endif
 
 #if HW_VERSION_VOLTAGE >= 48
 #define VBUS_S_DIVIDER_RATIO 19.0f
