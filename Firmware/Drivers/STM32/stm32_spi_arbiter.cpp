@@ -68,8 +68,9 @@ void Stm32SpiArbiter::transfer_async(SpiTask* task) {
     }
 }
 
+// TODO: this currently only works when called in a CMSIS thread.
 bool Stm32SpiArbiter::transfer(SPI_InitTypeDef config, Stm32Gpio ncs_gpio, const uint8_t* tx_buf, uint8_t* rx_buf, size_t length, uint32_t timeout_ms) {
-    uint8_t result = 0xff;
+    volatile uint8_t result = 0xff;
 
     SpiTask task = {
         .config = config,
@@ -77,8 +78,8 @@ bool Stm32SpiArbiter::transfer(SPI_InitTypeDef config, Stm32Gpio ncs_gpio, const
         .tx_buf = tx_buf,
         .rx_buf = rx_buf,
         .length = length,
-        .on_complete = [](void* ctx, bool success) { *(uint8_t*)ctx = success ? 1 : 0; },
-        .cb_ctx = &result,
+        .on_complete = [](void* ctx, bool success) { *(volatile uint8_t*)ctx = success ? 1 : 0; },
+        .cb_ctx = (void*)&result,
         .next = nullptr
     };
 
