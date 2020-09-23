@@ -75,6 +75,10 @@ public:
         LockinConfig_t lockin;
     };
 
+    struct Test {
+        float phase_vel;
+    };
+
     enum thread_signals {
         M_SIGNAL_PH_CURRENT_MEAS = 1u << 0
     };
@@ -85,6 +89,8 @@ public:
         LOCKIN_STATE_ACCELERATE,
         LOCKIN_STATE_CONST_VEL,
     };
+
+    struct Test test_;
 
     Axis(int axis_num,
             const AxisHardwareConfig_t& hw_config,
@@ -144,6 +150,7 @@ public:
     // @tparam T Must be a callable type that takes no arguments and returns a bool
     template<typename T>
     void run_control_loop(const T& update_handler) {
+        
         while (requested_state_ == AXIS_STATE_UNDEFINED) {
             // look for errors at axis level and also all subcomponents
             bool checks_ok = do_checks();
@@ -281,7 +288,10 @@ public:
             make_protocol_object("encoder", encoder_.make_protocol_definitions()),
             make_protocol_object("sensorless_estimator", sensorless_estimator_.make_protocol_definitions()),
             make_protocol_object("trap_traj", trap_.make_protocol_definitions()),
-            make_protocol_function("watchdog_feed", *this, &Axis::watchdog_feed)
+            make_protocol_function("watchdog_feed", *this, &Axis::watchdog_feed),
+            make_protocol_object("test",
+                make_protocol_ro_property("phase_vel", &test_.phase_vel)
+            )
         );
     }
 };

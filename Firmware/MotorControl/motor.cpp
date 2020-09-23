@@ -303,8 +303,36 @@ bool Motor::run_calibration() {
 
 bool Motor::enqueue_modulation_timings(float mod_alpha, float mod_beta) {
     float tA, tB, tC;
-    if (SVM(mod_alpha, mod_beta, &tA, &tB, &tC) != 0)
+    int ret;
+    ret = SVM(mod_alpha, mod_beta, &tA, &tB, &tC);
+    if(tA > test_.TaMax)
+    {
+        test_.TaMax = tA;        
+    }
+    if(tB > test_.TbMax)
+    {
+        test_.TbMax = tB;        
+    }
+    if(tC > test_.TcMax)
+    {
+        test_.TcMax = tC;        
+    }
+    if(tA < test_.TaMin)
+    {
+        test_.TaMin = tA;        
+    }
+    if(tB < test_.TbMin)
+    {
+        test_.TbMin = tB;        
+    }
+    if(tC < test_.TcMin)
+    {
+        test_.TcMin = tC;        
+    }
+    if (ret != 0)
         return set_error(ERROR_MODULATION_MAGNITUDE), false;
+    
+
     next_timings_[0] = (uint16_t)(tA * (float)TIM_1_8_PERIOD_CLOCKS);
     next_timings_[1] = (uint16_t)(tB * (float)TIM_1_8_PERIOD_CLOCKS);
     next_timings_[2] = (uint16_t)(tC * (float)TIM_1_8_PERIOD_CLOCKS);
@@ -322,6 +350,16 @@ bool Motor::enqueue_voltage_timings(float v_alpha, float v_beta) {
     return true;
 }
 
+bool Motor::enqueue_voltage_timings_percent(float v_alpha, float v_beta) {
+    float vfactor = 1.0f / ((2.0f / 3.0f));
+    float mod_alpha = vfactor * v_alpha;
+    float mod_beta = vfactor * v_beta;
+    if (!enqueue_modulation_timings(mod_alpha, mod_beta))
+        return false;
+    log_timing(TIMING_LOG_FOC_VOLTAGE);
+    return true;
+}
+
 // We should probably make FOC Current call FOC Voltage to avoid duplication.
 bool Motor::FOC_voltage(float v_d, float v_q, float pwm_phase) {
     float c = our_arm_cos_f32(pwm_phase);
@@ -329,6 +367,14 @@ bool Motor::FOC_voltage(float v_d, float v_q, float pwm_phase) {
     float v_alpha = c*v_d - s*v_q;
     float v_beta  = c*v_q + s*v_d;
     return enqueue_voltage_timings(v_alpha, v_beta);
+}
+
+bool Motor::FOC_voltage_percent(float v_d_percent, float v_q_percent, float pwm_phase) {
+    float c = our_arm_cos_f32(pwm_phase);
+    float s = our_arm_sin_f32(pwm_phase);
+    float v_alpha = c*v_d_percent - s*v_q_percent;
+    float v_beta  = c*v_q_percent + s*v_d_percent;
+    return enqueue_voltage_timings_percent(v_alpha, v_beta);
 }
 
 bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_phase) {
@@ -373,6 +419,9 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
     float Vd = ictrl.v_current_control_integral_d + Ierr_d * ictrl.p_gain;
     float Vq = ictrl.v_current_control_integral_q + Ierr_q * ictrl.p_gain;
 
+    test_.Vq = Vq;
+    test_.Vd = Vd;
+
     float mod_to_V = (2.0f / 3.0f) * vbus_voltage;
     float V_to_mod = 1.0f / mod_to_V;
     float mod_d = V_to_mod * Vd;
@@ -413,7 +462,7 @@ bool Motor::FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_pha
     return true;
 }
 
-
+//根据给定电流值，当前电角度，当前电线速度进行FOC控制
 bool Motor::update(float current_setpoint, float phase, float phase_vel) {
     current_setpoint *= config_.direction;
     phase *= config_.direction;
@@ -421,8 +470,14 @@ bool Motor::update(float current_setpoint, float phase, float phase_vel) {
 
     float pwm_phase = phase + 1.5f * current_meas_period * phase_vel;
 
+    test_.pwm_phrase = pwm_phase;
+    test_.current_setpoint = current_setpoint;
+
     // Execute current command
     // TODO: move this into the mot
+
+    /*if(!FOC_voltage(0.0f, current_setpoint, pwm_phase))
+        return false;
     if (config_.motor_type == MOTOR_TYPE_HIGH_CURRENT) {
         if(!FOC_current(0.0f, current_setpoint, phase, pwm_phase)){
             return false;
@@ -434,6 +489,49 @@ bool Motor::update(float current_setpoint, float phase, float phase_vel) {
     } else {
         set_error(ERROR_NOT_IMPLEMENTED_MOTOR_TYPE);
         return false;
+    }*/
+    return true;
+}
+
+bool Motor::update_new(float current_setpoint, float phase, float phase_vel, bool IsOpenLoop) {
+    current_setpoint *= config_.direction;
+    phase *= config_.direction;
+    phase_vel *= config_.direction;
+
+    float pwm_phase = phase + 1.5f * current_meas_period * phase_vel;
+
+    test_.pwm_phrase = pwm_phase;
+    test_.current_setpoint = current_setpoint;
+
+    // Execute current command
+    // TODO: move this into the mot
+    if(IsOpenLoop == false)
+    {
+        if(!FOC_current(0.0f, current_setpoint, phase, pwm_phase))
+            return false;
     }
+    else
+    {
+        /* code */
+        //如果是开环，current_setpoint代表了Vq的百分比
+        if(!FOC_voltage_percent(0.0f, current_setpoint, pwm_phase))
+            return false;
+    }
+    
+
+    /*if(!FOC_voltage(0.0f, current_setpoint, pwm_phase))
+        return false;
+    if (config_.motor_type == MOTOR_TYPE_HIGH_CURRENT) {
+        if(!FOC_current(0.0f, current_setpoint, phase, pwm_phase)){
+            return false;
+        }
+    } else if (config_.motor_type == MOTOR_TYPE_GIMBAL) {
+        //In gimbal motor mode, current is reinterptreted as voltage.
+        if(!FOC_voltage(0.0f, current_setpoint, pwm_phase))
+            return false;
+    } else {
+        set_error(ERROR_NOT_IMPLEMENTED_MOTOR_TYPE);
+        return false;
+    }*/
     return true;
 }

@@ -284,8 +284,31 @@ void Encoder::sample_now() {
         } break;
 
         case MODE_SINCOS: {
-            sincos_sample_s_ = (get_adc_voltage(GPIO_3_GPIO_Port, GPIO_3_Pin) / 3.3f) - 0.5f;
-            sincos_sample_c_ = (get_adc_voltage(GPIO_4_GPIO_Port, GPIO_4_Pin) / 3.3f) - 0.5f;
+            encoder_reference_sample = get_adc_voltage(GPIO_1_GPIO_Port, GPIO_1_Pin);
+            //sincos_sample_s_ = (get_adc_voltage(GPIO_3_GPIO_Port, GPIO_3_Pin) / 3.3f) - 0.5f;
+            //sincos_sample_c_ = (get_adc_voltage(GPIO_4_GPIO_Port, GPIO_4_Pin) / 3.3f) - 0.5f;
+            sincos_sample_s_ = (get_adc_voltage(GPIO_3_GPIO_Port, GPIO_3_Pin) - encoder_reference_sample) / 3.3f;
+            sincos_sample_c_ = (get_adc_voltage(GPIO_4_GPIO_Port, GPIO_4_Pin) - encoder_reference_sample) / 3.3f;
+            
+            if(sincos_sample_s_ > encoder_voltage_s_max)
+            {
+                encoder_voltage_s_max = sincos_sample_s_;
+            }
+
+            if(sincos_sample_s_ < encoder_voltage_s_min)
+            {
+                encoder_voltage_s_min = sincos_sample_s_;
+            }
+
+            if(sincos_sample_c_ > encoder_voltage_c_max)
+            {
+                encoder_voltage_c_max = sincos_sample_c_;
+            }
+
+            if(sincos_sample_c_ < encoder_voltage_c_min)
+            {
+                encoder_voltage_c_min = sincos_sample_c_;
+            }
         } break;
 
         default: {

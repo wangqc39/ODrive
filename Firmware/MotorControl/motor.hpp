@@ -77,6 +77,19 @@ public:
         float inverter_temp_limit_upper = 120;
     };
 
+    struct Test {
+        float pwm_phrase;
+        float current_setpoint;
+        float Vq;
+        float Vd;
+        float TaMax;
+        float TbMax;
+        float TcMax;
+        float TaMin;
+        float TbMin;
+        float TcMin;
+    };
+
     enum TimingLog_t {
         TIMING_LOG_GENERAL,
         TIMING_LOG_ADC_CB_I,
@@ -123,13 +136,17 @@ public:
     bool run_calibration();
     bool enqueue_modulation_timings(float mod_alpha, float mod_beta);
     bool enqueue_voltage_timings(float v_alpha, float v_beta);
+    bool enqueue_voltage_timings_percent(float v_alpha, float v_beta);
     bool FOC_voltage(float v_d, float v_q, float pwm_phase);
+    bool FOC_voltage_percent(float v_d_percent, float v_q_percent, float pwm_phase);
     bool FOC_current(float Id_des, float Iq_des, float I_phase, float pwm_phase);
     bool update(float current_setpoint, float phase, float phase_vel);
+    bool update_new(float current_setpoint, float phase, float phase_vel, bool IsOpenLoop);
 
     const MotorHardwareConfig_t& hw_config_;
     const GateDriverHardwareConfig_t gate_driver_config_;
     Config_t& config_;
+    Test test_ = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
     Axis* axis_ = nullptr; // set by Axis constructor
 
 //private:
@@ -235,6 +252,18 @@ public:
                 make_protocol_property("requested_current_range", &config_.requested_current_range),
                 make_protocol_property("current_control_bandwidth", &config_.current_control_bandwidth,
                     [](void* ctx) { static_cast<Motor*>(ctx)->update_current_controller_gains(); }, this)
+            ),
+            make_protocol_object("test",
+                make_protocol_ro_property("pwm_phrase", &test_.pwm_phrase),
+                make_protocol_ro_property("current_setpoint", &test_.current_setpoint),
+                make_protocol_ro_property("Vq", &test_.Vq),
+                make_protocol_ro_property("Vd", &test_.Vd),
+                make_protocol_ro_property("TaMax", &test_.TaMax),
+                make_protocol_ro_property("TbMax", &test_.TbMax),
+                make_protocol_ro_property("TcMax", &test_.TcMax),
+                make_protocol_ro_property("TaMin", &test_.TaMin),
+                make_protocol_ro_property("TbMin", &test_.TbMin),
+                make_protocol_ro_property("TcMin", &test_.TcMin)
             )
         );
     }

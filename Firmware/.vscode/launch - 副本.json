@@ -10,15 +10,13 @@
             "servertype": "openocd",
             "request": "launch",
             "name": "Debug ODrive",
-            "device":"STM32F405RG",
-            "executable": "${workspaceRoot}\\build\\ODriveFirmware.elf",
+            "executable": "${workspaceRoot}/build/ODriveFirmware.elf",
             "configFiles": [
                 "interface/stlink-v2.cfg",
                 "target/stm32f4x_stlink.cfg",
             ],
             "svdFile": "${workspaceRoot}/Board/v3/STM32F40x.svd",
-            "cwd": "${workspaceRoot}",
-            "preLaunchTask": "build",
+            "cwd": "${workspaceRoot}"
         },
         {
             // For the Cortex-Debug extension
@@ -26,11 +24,10 @@
             "servertype": "openocd",
             "request": "launch",
             "name": "Debug ODrive - FreeRTOS",
-            "device":"STM32F405RG",
             "executable": "${workspaceRoot}/build/ODriveFirmware.elf",
             "rtos": "FreeRTOS",
             "configFiles": [
-                "stlink-v2.cfg",
+                "interface/stlink-v2.cfg",
                 "target/stm32f4x_stlink.cfg",
             ],
             "cwd": "${workspaceRoot}"

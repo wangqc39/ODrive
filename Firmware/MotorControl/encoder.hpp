@@ -87,11 +87,18 @@ public:
     float pll_ki_ = 0.0f;   // [(count/s^2) / count]
     float calib_scan_response_ = 0.0f; // debug report from offset calib
 
+    float encoder_voltage_s_max = 0.0f;
+    float encoder_voltage_s_min = 0.0f;
+    float encoder_voltage_c_max = 0.0f;
+    float encoder_voltage_c_min = 3.3f;
+
     int16_t tim_cnt_sample_ = 0; // 
     // Updated by low_level pwm_adc_cb
     uint8_t hall_state_ = 0x0; // bit[0] = HallA, .., bit[2] = HallC
     float sincos_sample_s_ = 0.0f;
     float sincos_sample_c_ = 0.0f;
+    float encoder_reference_sample = 0.0f;
+    
 
     // Communication protocol definitions
     auto make_protocol_definitions() {

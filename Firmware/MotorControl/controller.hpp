@@ -23,7 +23,7 @@ public:
     };
 
     struct Config_t {
-        ControlMode_t control_mode = CTRL_MODE_POSITION_CONTROL;  //see: Motor_control_mode_t
+        ControlMode_t control_mode = CTRL_MODE_VELOCITY_CONTROL;//CTRL_MODE_POSITION_CONTROL;  //see: Motor_control_mode_t 
         float pos_gain = 20.0f;  // [(counts/s) / counts]
         float vel_gain = 5.0f / 10000.0f;  // [A/(counts/s)]
         // float vel_gain = 5.0f / 200.0f, // [A/(rad/s)] <sensorless example>
@@ -32,6 +32,11 @@ public:
         float vel_limit_tolerance = 1.2f;  // ratio to vel_lim. 0.0f to disable
         float vel_ramp_rate = 10000.0f;  // [(counts/s) / s]
         bool setpoints_in_cpr = false;
+    };
+
+    struct Test {
+        float vel_set_cnt;
+        float ThPercent;
     };
 
     explicit Controller(Config_t& config);
@@ -82,6 +87,7 @@ public:
     // variables exposed on protocol
     float pos_setpoint_ = 0.0f;
     float vel_setpoint_ = 0.0f;
+    float voltage_setpoint = 0.0f;
     // float vel_setpoint = 800.0f; <sensorless example>
     float vel_integrator_current_ = 0.0f;  // [A]
     float current_setpoint_ = 0.0f;        // [A]
@@ -92,12 +98,18 @@ public:
 
     float goal_point_ = 0.0f;
 
+    Test test_ =
+    {
+        .vel_set_cnt = 0.0f
+    };
+
     // Communication protocol definitions
     auto make_protocol_definitions() {
         return make_protocol_member_list(
             make_protocol_property("error", &error_),
             make_protocol_property("pos_setpoint", &pos_setpoint_),
             make_protocol_property("vel_setpoint", &vel_setpoint_),
+            make_protocol_property("voltage_setpoint", &voltage_setpoint),
             make_protocol_property("vel_integrator_current", &vel_integrator_current_),
             make_protocol_property("current_setpoint", &current_setpoint_),
             make_protocol_property("vel_ramp_target", &vel_ramp_target_),
@@ -120,8 +132,14 @@ public:
                                    "current_setpoint"),
             make_protocol_function("move_to_pos", *this, &Controller::move_to_pos, "pos_setpoint"),
             make_protocol_function("move_incremental", *this, &Controller::move_incremental, "displacement", "from_goal_point"),
-            make_protocol_function("start_anticogging_calibration", *this, &Controller::start_anticogging_calibration)
+            make_protocol_function("start_anticogging_calibration", *this, &Controller::start_anticogging_calibration),
+            make_protocol_object("test",
+                make_protocol_ro_property("vel_set_cnt", &test_.vel_set_cnt),
+                make_protocol_ro_property("ThPercent", &test_.ThPercent)
+            )
         );
+
+        
     }
 };
 

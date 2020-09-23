@@ -296,9 +296,25 @@ bool Axis::run_closed_loop_control_loop() {
         float current_setpoint;
         if (!controller_.update(encoder_.pos_estimate_, encoder_.vel_estimate_, &current_setpoint))
             return error_ |= ERROR_CONTROLLER_FAILED, false; //TODO: Make controller.set_error
+        //电气的线速度，单位rad/s
         float phase_vel = 2*M_PI * encoder_.vel_estimate_ / (float)encoder_.config_.cpr * motor_.config_.pole_pairs;
-        if (!motor_.update(current_setpoint, encoder_.phase_, phase_vel))
-            return false; // set_error should update axis.error_
+        test_.phase_vel = phase_vel;
+
+        /*if(current_setpoint == 0)
+        {
+            motor_.test_.TaMax =     motor_.test_.TbMax   = motor_.test_.TcMax = 0;     
+        }*/
+        if(controller_.config_.control_mode == Controller::CTRL_MODE_VOLTAGE_CONTROL)
+        {
+            if (!motor_.update_new(current_setpoint, encoder_.phase_, phase_vel, true))
+                return false; // set_error should update axis.error_
+        }
+        else
+        {
+            if (!motor_.update_new(current_setpoint, encoder_.phase_, phase_vel, false))
+                return false; // set_error should update axis.error_
+        }
+        
         return true;
     });
     set_step_dir_active(false);

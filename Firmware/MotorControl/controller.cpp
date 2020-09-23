@@ -102,7 +102,17 @@ bool Controller::anticogging_calibration(float pos_estimate, float vel_estimate)
     return false;
 }
 
+//根据位置估算和速度估算，给出Iq值
 bool Controller::update(float pos_estimate, float vel_estimate, float* current_setpoint_output) {
+    if(config_.control_mode == CTRL_MODE_VOLTAGE_CONTROL)
+    {
+        //Vq的上限值为Vbus的55%
+        float percent = voltage_setpoint * 0.55f * 0.01f;
+        test_.ThPercent = percent;
+        *current_setpoint_output = percent;
+        return true;
+    }
+
     // Only runs if anticogging_.calib_anticogging is true; non-blocking
     anticogging_calibration(pos_estimate, vel_estimate);
     float anticogging_pos = pos_estimate;
