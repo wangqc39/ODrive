@@ -23,12 +23,12 @@ public:
     };
 
     struct Config_t {
-        ControlMode_t control_mode = CTRL_MODE_VELOCITY_CONTROL;//CTRL_MODE_POSITION_CONTROL;  //see: Motor_control_mode_t 
+        ControlMode_t control_mode = CTRL_MODE_VOLTAGE_CONTROL;//CTRL_MODE_POSITION_CONTROL;  //see: Motor_control_mode_t 
         float pos_gain = 20.0f;  // [(counts/s) / counts]
         float vel_gain = 5.0f / 10000.0f;  // [A/(counts/s)]
         // float vel_gain = 5.0f / 200.0f, // [A/(rad/s)] <sensorless example>
         float vel_integrator_gain = 10.0f / 10000.0f;  // [A/(counts/s * s)]
-        float vel_limit = 20000.0f;        // [counts/s]
+        float vel_limit = 800000.0f;//20000.0f;        // [counts/s]
         float vel_limit_tolerance = 1.2f;  // ratio to vel_lim. 0.0f to disable
         float vel_ramp_rate = 10000.0f;  // [(counts/s) / s]
         bool setpoints_in_cpr = false;

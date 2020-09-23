@@ -665,7 +665,7 @@ void pwm_in_init() {
     sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
     sConfigIC.ICFilter = 15;
 
-#if HW_VERSION_MAJOR == 3 && HW_VERSION_MINOR >= 3
+/*#if HW_VERSION_MAJOR == 3 && HW_VERSION_MINOR >= 3
     for (int gpio_num = 1; gpio_num <= 4; ++gpio_num) {
 #else
     int gpio_num = 4; {
@@ -677,7 +677,13 @@ void pwm_in_init() {
             HAL_TIM_IC_ConfigChannel(&htim5, &sConfigIC, gpio_num_to_tim_2_5_channel(gpio_num));
             HAL_TIM_IC_Start_IT(&htim5, gpio_num_to_tim_2_5_channel(gpio_num));
         }
-    }
+    }*/
+    int gpio_num = 2;
+    GPIO_InitStruct.Pin = get_gpio_pin_by_pin(gpio_num);
+    HAL_GPIO_DeInit(get_gpio_port_by_pin(gpio_num), get_gpio_pin_by_pin(gpio_num));
+    HAL_GPIO_Init(get_gpio_port_by_pin(gpio_num), &GPIO_InitStruct);
+    HAL_TIM_IC_ConfigChannel(&htim5, &sConfigIC, gpio_num_to_tim_2_5_channel(gpio_num));
+    HAL_TIM_IC_Start_IT(&htim5, gpio_num_to_tim_2_5_channel(gpio_num));
 }
 
 //TODO: These expressions have integer division by 1MHz, so it will be incorrect for clock speeds of not-integer MHz
@@ -688,6 +694,7 @@ void pwm_in_init() {
 #define PWM_MAX_LEGAL_HIGH_TIME    ((TIM_2_5_CLOCK_HZ / 1000000UL) * 2500UL) // ignore high periods longer than 2.5ms
 #define PWM_INVERT_INPUT        false
 
+extern Axis *axes[AXIS_COUNT];
 void handle_pulse(int gpio_num, uint32_t high_time) {
     if (high_time < PWM_MIN_LEGAL_HIGH_TIME || high_time > PWM_MAX_LEGAL_HIGH_TIME)
         return;
@@ -697,14 +704,17 @@ void handle_pulse(int gpio_num, uint32_t high_time) {
     if (high_time > PWM_MAX_HIGH_TIME)
         high_time = PWM_MAX_HIGH_TIME;
     float fraction = (float)(high_time - PWM_MIN_HIGH_TIME) / (float)(PWM_MAX_HIGH_TIME - PWM_MIN_HIGH_TIME);
-    float value = board_config.pwm_mappings[gpio_num - 1].min +
-                  (fraction * (board_config.pwm_mappings[gpio_num - 1].max - board_config.pwm_mappings[gpio_num - 1].min));
+    //float value = board_config.pwm_mappings[gpio_num - 1].min +
+    //              (fraction * (board_config.pwm_mappings[gpio_num - 1].max - board_config.pwm_mappings[gpio_num - 1].min));
+    float value = (fraction * 100);
 
-    Endpoint* endpoint = get_endpoint(board_config.pwm_mappings[gpio_num - 1].endpoint);
-    if (!endpoint)
-        return;
+    axes[1]->controller_.voltage_setpoint = value;
 
-    endpoint->set_from_float(value);
+    //Endpoint* endpoint = get_endpoint(board_config.pwm_mappings[gpio_num - 1].endpoint);
+    //if (!endpoint)
+    //    return;
+
+    //endpoint->set_from_float(value);
 }
 
 void pwm_in_cb(int channel, uint32_t timestamp) {

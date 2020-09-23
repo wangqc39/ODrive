@@ -24,7 +24,7 @@ public:
     };
 
     struct Config_t {
-        Encoder::Mode_t mode = Encoder::MODE_INCREMENTAL;
+        Encoder::Mode_t mode = Encoder::MODE_SINCOS;//MODE_INCREMENTAL;
         bool use_index = false;
         bool pre_calibrated = false; // If true, this means the offset stored in
                                     // configuration is valid and does not need
@@ -32,7 +32,7 @@ public:
                                     // In this case the encoder will enter ready
                                     // state as soon as the index is found.
         bool zero_count_on_find_idx = true;
-        int32_t cpr = (2048 * 4);   // Default resolution of CUI-AMT102 encoder,
+        int32_t cpr = 12566;//(2048 * 4);   // Default resolution of CUI-AMT102 encoder,
         int32_t offset = 0;        // Offset between encoder count and rotor electrical phase
         float offset_float = 0.0f; // Sub-count phase alignment offset
         bool enable_phase_interpolation = true; // Use velocity to interpolate inside the count state
